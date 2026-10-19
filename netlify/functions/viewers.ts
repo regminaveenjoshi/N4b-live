@@ -1,14 +1,34 @@
-import type { Config, Context } from "@netlify/functions";
+import type { Config } from "@netlify/functions";
+import { getStore } from "@netlify/blobs";
 import { createClient } from "@supabase/supabase-js";
 
 const ONLINE_WINDOW_SECONDS = 60;
 
-export default async (request: Request, context: Context) => {
-  if (request.method !== "GET" && request.method !== "POST") {
-    return new Response("Method not allowed", {
-      status: 405,
-      headers: { Allow: "GET, POST" },
-    });
+export default async (request: Request) => {
+  if (request.method !== "POST") {
+    return Response.json(
+      { error: "Method not allowed" },
+      { status: 405, headers: { Allow: "POST" } },
+    );
+  }
+
+  let body: { session?: unknown };
+
+  try {
+    body = await request.json();
+  } catch {
+    return Response.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  const sessionId = body.session;
+
+  if (
+    typeof sessionId !== "string" ||
+    sessionId.length < 20 ||
+    sessionId.length > 100 ||
+    !/^[a-zA-Z0-9_-]+$/.test(sessionId)
+  ) {
+    return Response.json({ error: "Invalid session" }, { status: 400 });
   }
 
   const supabaseUrl = Netlify.env.get("SUPABASE_URL");
@@ -23,26 +43,9 @@ export default async (request: Request, context: Context) => {
 
   const supabase = createClient(supabaseUrl, supabaseKey);
 
-  const url = new URL(request.url);
-  let sessionId = url.searchParams.get("session");
-
-  if (request.method === "POST") {
-    try {
-      const body = await request.json();
-      sessionId = typeof body.session === "string" ? body.session : null;
-    } catch {
-      return Response.json({ error: "Invalid JSON" }, { status: 400 });
-    }
-  }
-
-  if (
-    !sessionId ||
-    sessionId.length < 20 ||
-    sessionId.length > 100 ||
-    !/^[a-zA-Z0-9_-]+$/.test(sessionId)
-  ) {
-    return Response.json({ error: "Invalid session" }, { status: 400 });
-  }
+  const cutoff = new Date(
+    Date.now() - ONLINE_WINDOW_SECONDS * 1000,
+  ).toISOString();
 
   const { error: upsertError } = await supabase
     .from("online_visitors")
@@ -56,35 +59,23 @@ export default async (request: Request, context: Context) => {
     return Response.json({ error: "Unable to update visitor" }, { status: 500 });
   }
 
-  const cutoff = new Date(
-    Date.now() - ONLINE_WINDOW_SECONDS * 1000,
-  ).toISOString();
-
-  const { error: cleanupError } = await supabase
+  await supabase
     .from("online_visitors")
     .delete()
     .lt("last_seen_at", cutoff);
 
-  if (cleanupError) {
-    console.error("Visitor cleanup failed:", cleanupError.message);
-  }
-
-  const { count, error: countError } = await supabase
+  const { count, error } = await supabase
     .from("online_visitors")
     .select("*", { count: "exact", head: true })
     .gte("last_seen_at", cutoff);
 
-  if (countError) {
+  if (error) {
     return Response.json({ error: "Unable to count visitors" }, { status: 500 });
   }
 
   return Response.json(
     { viewers: count ?? 0 },
-    {
-      headers: {
-        "Cache-Control": "no-store",
-      },
-    },
+    { headers: { "Cache-Control": "no-store" } },
   );
 };
 
