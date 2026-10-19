@@ -6,6 +6,7 @@ import { HomePage } from "@/pages/HomePage";
 import { MatchPage } from "@/pages/MatchPage";
 import { AdminLoginPage } from "@/pages/AdminLoginPage";
 import { AdminDashboardPage } from "@/pages/AdminDashboardPage";
+import CommunityPromos from "@/components/CommunityPromos";
 import { useEffect } from "react";
 
 function Routes() {
@@ -37,8 +38,9 @@ export default function App() {
       <div className="min-h-screen bg-zinc-950 text-zinc-100">
         <Header />
         <main>
-          <Routes />
-        </main>
+  <Routes />
+  <CommunityPromos />
+</main>
         <Footer />
       </div>
     </AuthProvider>
