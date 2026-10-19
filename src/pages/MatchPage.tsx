@@ -92,7 +92,7 @@ export function MatchPage({ id }: { id: string }) {
               src={match.source_url}
               title={match.title}
               className="h-full w-full"
-              sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+          
               allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
               referrerPolicy="strict-origin-when-cross-origin"
               loading="lazy"
