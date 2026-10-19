@@ -1,0 +1,2 @@
+[functions.admin-promote]
+verify_jwt = true
